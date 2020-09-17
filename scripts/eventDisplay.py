@@ -6,7 +6,9 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pyjet
 
-# Get the file and import using uproot
+
+# Input section  -  You may want to edit these
+# File selection
 mMed = 1000
 mDark = 2
 temp = 2
@@ -19,9 +21,24 @@ datasets = [base +
             'PrivateSamples.SUEP_2018_mMed-%d_mDark-%d_temp-%d_decay-%s'
             '_13TeV-pythia8_n-100_0_RA2AnalysisTree.root'%(mMed, mDark, temp, decayMode),
            ]
+# if you want multiple plots then change multi to True
+# Warning: multiplot funtion is currently broken
+multi = False
+if multi:
+    figure, axs = plt.subplots(nrows=2, ncols=3, figsize=(16,8))
+    axs_flat = axs.flatten()
+
+# Switch to true if you want to boost along the scalar 4-momentum
+boost = False
+# Switch to true to save the figure as a PDF
+save = True
+# The event number the loop starts running form
+event = 46
+
+
+# Get the file and import using uproot
 rootfile = datasets[0]
 fin = uproot.open(rootfile)
-
 # Attach the branches to numpy arrays
 tree = fin['TreeMaker2/PreSelection']
 def get_branch(branchname):
@@ -317,16 +334,6 @@ def plot(ievt, ax=None, boost=False):
 
 
 # The program runs through this loop
-# if you want multiple plots then change multi to True
-# Warning: multiplot funtion is currently broken
-multi = False
-if multi:
-    figure, axs = plt.subplots(nrows=2, ncols=3, figsize=(16,8))
-    axs_flat = axs.flatten()
-
-boost = False
-save = True
-event = 46
 j = 0
 for i in range(event,100+event):
     if HT[i] < 1200: continue
