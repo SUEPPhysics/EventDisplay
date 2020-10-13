@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pyjet
 
-
 # Input section  -  You may want to edit these
 # File selection
 mMed = 1000
@@ -33,7 +32,7 @@ boost = False
 # Switch to true to save the figure as a PDF
 save = True
 # The event number the loop starts running form
-event = 46
+event = 0
 
 
 # Get the file and import using uproot
@@ -99,13 +98,13 @@ def plot(ievt, ax=None, boost=False):
     genParticles_Status = GenParticles_Status[ievt]
 
     # Get tracks information
-    tracks_x = Tracks_x[event]
-    tracks_y = Tracks_y[event]
-    tracks_z = Tracks_z[event]
+    tracks_x = Tracks_x[ievt]
+    tracks_y = Tracks_y[ievt]
+    tracks_z = Tracks_z[ievt]
     tracks_E = np.sqrt(tracks_x**2+tracks_y**2+tracks_z**2+0.13957**2)
     tracks = uproot_methods.TLorentzVectorArray.from_cartesian(tracks_x, tracks_y, tracks_z, tracks_E)
-    tracks_fromPV0 = Tracks_fromPV0[event]
-    tracks_matchedToPFCandidate = Tracks_matchedToPFCandidate[event]
+    tracks_fromPV0 = Tracks_fromPV0[ievt]
+    tracks_matchedToPFCandidate = Tracks_matchedToPFCandidate[ievt]
 
     # Get the AK8 jets of the event
     jetsAK8_pt = JetsAK8_pt[ievt]
@@ -147,8 +146,7 @@ def plot(ievt, ax=None, boost=False):
                                                                  jetsAK15_eta,
                                                                  jetsAK15_phi,
                                                                  jetsAK15_m)
-    #jetsAK15 = jetsAK15[jetsAK15.pt > 30]
-    #jetsAK15 = jetsAK15[0:2]
+    jetsAK15 = jetsAK15[jetsAK15.pt > 100]
 
     # Apply the selection criteria to get the final particle arrays
     # 10 arrays of final particles in total
@@ -265,16 +263,20 @@ def plot(ievt, ax=None, boost=False):
     # Add AK8 and AK15 jets to the plot
     ax.scatter(jetsAK8.phi, jetsAK8.eta, s=scale(jetsAK8,scalarParticle),
                facecolors='none', edgecolors='xkcd:bright green')
-    #ax.scatter(jetsAK15.phi, jetsAK15.eta, s=scale(jetsAK15,scalarParticle),
-               #facecolors='none', edgecolors='xkcd:bright yellow')
+    ax.scatter(jetsAK15.phi, jetsAK15.eta, s=scale(jetsAK15,scalarParticle),
+               facecolors='none', edgecolors='xkcd:bright yellow')
+
+    print("Event %d:"%ievt)
+    print("  JetsAK8")
     for jet in jetsAK8:
         phis, etas = get_dr_ring(0.8, jet.phi, jet.eta)
         ax.plot(phis, etas, color='xkcd:bright green', linestyle='--')
-        print("Jet: pT=%d, eta=%.2f, phi=%.2f\n"%(jet.pt, jet.eta, jet.phi))
-    #for jet in jetsAK15:
-        #phis, etas = get_dr_ring(1.5, jet.phi, jet.eta)
-        #ax.plot(phis, etas, color='xkcd:bright yellow', linestyle='--')
-
+        print("    Jet: pT=%d, eta=%.2f, phi=%.2f"%(jet.pt, jet.eta, jet.phi))
+    print("  JetsAK15")
+    for jet in jetsAK15:
+        phis, etas = get_dr_ring(1.5, jet.phi, jet.eta)
+        ax.plot(phis, etas, color='xkcd:bright yellow', linestyle='--')
+        print("    Jet: pT=%d, eta=%.2f, phi=%.2f"%(jet.pt, jet.eta, jet.phi))
 
     # Legend 1 is particle type
     line1 = ax.scatter([-100], [-100], label='$e$',marker='o', c='xkcd:black')
@@ -327,16 +329,19 @@ def plot(ievt, ax=None, boost=False):
 
     if (boost == False) & (save == True):
         fig.savefig('Results/mMed%d_mDark%d_temp%d_decay-%s_'
-                    'Event%d.pdf'%(mMed, mDark, temp, decayMode,event))
+                    'Event%d.pdf'%(mMed, mDark, temp, decayMode,ievt))
     elif (boost == True) & (save == True):
         fig.savefig('Results/mMed%d_mDark%d_temp%d_decay-%s_'
-                    'Event%d_boosted.pdf'%(mMed, mDark, temp, decayMode,event))
+                    'Event%d_boosted.pdf'%(mMed, mDark, temp, decayMode,ievt))
 
 
 # The program runs through this loop
 j = 0
+
+selectedEvents = HT > 1200
+
 for i in range(event,100+event):
-    if HT[i] < 1200: continue
+    if ~selectedEvents[i]: continue
     if multi == False:
         plot(i,boost=boost)
         break;
