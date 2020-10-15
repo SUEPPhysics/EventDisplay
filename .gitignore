@@ -130,3 +130,9 @@ dmypy.json
 
 # MacOS files
 .DS_Store
+
+# PDF and image files
+*.pdf
+*.png
+*.eps
+*.jpg
