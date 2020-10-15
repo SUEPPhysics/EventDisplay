@@ -3,8 +3,13 @@ import uproot_methods
 import numpy as np
 from math import pi
 import matplotlib.pyplot as plt
+import mplhep as hep
 import matplotlib.patches as mpatches
 import pyjet
+
+plt.style.use(hep.style.ROOT)
+boost = False
+event = 0
 
 # Get the file and import using uproot
 mMed = 1000
@@ -48,30 +53,39 @@ def makeJets(tracks, R):
     jetsAK15 = sequence.inclusive_jets()
     return jetsAK15
 
-boost = False
-event = 1
-for i in range(event,100+event):
+jetMultiplicities = [0]
+for i in range(Tracks_x.size):
     if HT[i] > 1200:
         event = i
-        break;
 
-# Get tracks information
-tracks_x = Tracks_x[event]
-tracks_y = Tracks_y[event]
-tracks_z = Tracks_z[event]
-tracks_E = np.sqrt(tracks_x**2+tracks_y**2+tracks_z**2+0.13957**2)
-tracks = uproot_methods.TLorentzVectorArray.from_cartesian(tracks_x, tracks_y, tracks_z, tracks_E)
-tracks_fromPV0 = Tracks_fromPV0[event]
-tracks_matchedToPFCandidate = Tracks_matchedToPFCandidate[event]
+        # Get tracks information
+        tracks_x = Tracks_x[event]
+        tracks_y = Tracks_y[event]
+        tracks_z = Tracks_z[event]
+        tracks_E = np.sqrt(tracks_x**2+tracks_y**2+tracks_z**2+0.13957**2)
+        tracks = uproot_methods.TLorentzVectorArray.from_cartesian(tracks_x, tracks_y, tracks_z, tracks_E)
+        tracks_fromPV0 = Tracks_fromPV0[event]
+        tracks_matchedToPFCandidate = Tracks_matchedToPFCandidate[event]
 
-# Select good tracks
+        # Select good tracks
+        tracks = tracks[(tracks.pt > 1.) &
+                        (tracks.eta < 2.5) &
+                        (tracks_fromPV0 >= 2) &
+                        (tracks_matchedToPFCandidate > 0)]
 
-tracks = tracks[(tracks.pt > 1.) &
-                (tracks.eta < 2.5) &
-                (tracks_fromPV0 >= 2) &
-                (tracks_matchedToPFCandidate > 0)]
+        jetsAK15 = makeJets(tracks, 1.5)
+        #print("Event %d:"%event)
 
-jetsAK15 = makeJets(tracks, 1.5)
-for jet in jetsAK15:
-    if jet.pt > 30:
-        print(jet)
+        for jet in jetsAK15:
+            if jet.pt > 100:
+                jetMultiplicities = np.append(jetMultiplicities,[len(jet)])
+                #print("  Jet: pt=%f, eta=%f, phi=%f"%(jet.pt, jet.eta, jet.phi))
+
+jetMultiplicities = jetMultiplicities[1:]
+
+fig = plt.figure(figsize=(8,8))
+ax = plt.gca()
+ax.set_xlabel('AK15 jets multiplicity')
+ax.set_ylabel('Entries/bin')
+plt.hist(jetMultiplicities,bins=50,histtype='step')
+plt.show()

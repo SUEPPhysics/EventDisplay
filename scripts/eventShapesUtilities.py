@@ -22,7 +22,7 @@ def sphericity(s):
     sphericity = (s_eigvalues[0]+s_eigvalues[1])*3./2.
     return sphericity
 
-def sphericity(s):
+def aplanarity(s):
     s_eigvalues, s_eigvectors = np.linalg.eig(s)
     s_eigvalues = np.sort(s_eigvalues)
     aplanarity = s_eigvalues[0]*3./2.

@@ -32,7 +32,7 @@ boost = False
 # Switch to true to save the figure as a PDF
 save = True
 # The event number the loop starts running form
-event = 0
+event = 45
 
 
 # Get the file and import using uproot
@@ -61,7 +61,7 @@ JetsAK8_phi = get_branch('JetsAK8.fCoordinates.fPhi')
 JetsAK8_E = get_branch('JetsAK8.fCoordinates.fE')
 HT = get_branch('HT')
 
-def get_dr_ring(dr, phi_c=0, eta_c=0, n_points=100):
+def get_dr_ring(dr, phi_c=0, eta_c=0, n_points=600):
     deta = np.linspace(-dr, +dr, n_points)
     dphi = np.sqrt(dr**2 - np.square(deta))
     deta = eta_c+np.concatenate((deta, deta[::-1]))
@@ -270,12 +270,20 @@ def plot(ievt, ax=None, boost=False):
     print("  JetsAK8")
     for jet in jetsAK8:
         phis, etas = get_dr_ring(0.8, jet.phi, jet.eta)
-        ax.plot(phis, etas, color='xkcd:bright green', linestyle='--')
+        phis = phis[1:]
+        etas = etas[1:]
+        ax.plot(phis[phis>pi]-2*pi, etas[phis>pi], color='xkcd:bright green', linestyle='--')
+        ax.plot(phis[phis<-pi]+2*pi, etas[phis<-pi], color='xkcd:bright green', linestyle='--')
+        ax.plot(phis[phis<pi], etas[phis<pi], color='xkcd:bright green', linestyle='--')
         print("    Jet: pT=%d, eta=%.2f, phi=%.2f"%(jet.pt, jet.eta, jet.phi))
     print("  JetsAK15")
     for jet in jetsAK15:
         phis, etas = get_dr_ring(1.5, jet.phi, jet.eta)
-        ax.plot(phis, etas, color='xkcd:bright yellow', linestyle='--')
+        phis = phis[1:]
+        etas = etas[1:]
+        ax.plot(phis[phis>pi]-2*pi, etas[phis>pi], color='xkcd:bright yellow', linestyle='--')
+        ax.plot(phis[phis<-pi]+2*pi, etas[phis<-pi], color='xkcd:bright yellow', linestyle='--')
+        ax.plot(phis[phis<pi], etas[phis<pi], color='xkcd:bright yellow', linestyle='--')
         print("    Jet: pT=%d, eta=%.2f, phi=%.2f"%(jet.pt, jet.eta, jet.phi))
 
     # Legend 1 is particle type
@@ -290,7 +298,7 @@ def plot(ievt, ax=None, boost=False):
                        facecolors='none', edgecolors='xkcd:bright green')
     line8 = ax.scatter([-100], [-100], label='AK15 jets', marker='o',
                        facecolors='none', edgecolors='xkcd:bright yellow')
-    first_legend = plt.legend(handles=[line1, line2, line3, line4, line5, line6, line7],
+    first_legend = plt.legend(handles=[line1, line2, line3, line4, line5, line6, line7, line8],
                               loc='upper right', fontsize=12)
     ax.add_artist(first_legend)
 
