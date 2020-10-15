@@ -1,13 +1,9 @@
 import uproot
 import uproot_methods
-import coffea
-from coffea import hist
 import numpy as np
-import seutils
 from math import pi
 import matplotlib.pyplot as plt
 import mplhep as hep
-import matplotlib.patches as mpatches
 import pyjet
 import eventShapesUtilities
 
@@ -20,9 +16,9 @@ mDark = 2
 temp = 2
 #decayMode = 'darkPho'
 decayMode = 'darkPhoHad'
-base = '/Users/chrispap/'
+#base = '/Users/chrispap/'
 # xrootd is not working properly in Python3 :(
-#base = 'root://cmseos.fnal.gov//store/user/kdipetri/SUEP/Production_v0.1/2018/NTUP/'
+base = 'root://cmseos.fnal.gov//store/user/kdipetri/SUEP/Production_v0.1/2018/NTUP/'
 datasets = [base +
             'PrivateSamples.SUEP_2018_mMed-%d_mDark-%d_temp-%d_decay-%s'
             '_13TeV-pythia8_n-100_0_RA2AnalysisTree.root'%(mMed, mDark, temp, decayMode),
@@ -92,9 +88,15 @@ def isrTagger(jets):
     elif (mult0 < 130) & (mult1 < 130):
         print("Warning: both multiplicities are below 130!")
     if mult0 > mult1:
-        return uproot_methods.TLorentzVectorArray.from_ptetaphim([jets[1].pt],[jets[1].eta],[jets[1].phi],[jets[1].mass])
+        return uproot_methods.TLorentzVectorArray.from_ptetaphim([jets[1].pt],
+                                                                 [jets[1].eta],
+                                                                 [jets[1].phi],
+                                                                 [jets[1].mass])
     else:
-        return uproot_methods.TLorentzVectorArray.from_ptetaphim([jets[0].pt],[jets[0].eta],[jets[0].phi],[jets[0].mass])
+        return uproot_methods.TLorentzVectorArray.from_ptetaphim([jets[0].pt],
+                                                                 [jets[0].eta],
+                                                                 [jets[0].phi],
+                                                                 [jets[0].mass])
 
 for ievt in range(GenParticles_Status.size):
     # Get the particles of ievt event

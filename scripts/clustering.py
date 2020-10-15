@@ -4,7 +4,6 @@ import numpy as np
 from math import pi
 import matplotlib.pyplot as plt
 import mplhep as hep
-import matplotlib.patches as mpatches
 import pyjet
 
 plt.style.use(hep.style.ROOT)
@@ -17,9 +16,9 @@ mDark = 2
 temp = 2
 #decayMode = 'darkPho'
 decayMode = 'darkPhoHad'
-base = '/Users/chrispap/'
+#base = '/Users/chrispap/'
 # xrootd is not working properly in Python3 :(
-#base = 'root://cmseos.fnal.gov//store/user/kdipetri/SUEP/Production_v0.1/2018/NTUP/'
+base = 'root://cmseos.fnal.gov//store/user/kdipetri/SUEP/Production_v0.2/2018/NTUP/'
 datasets = [base +
             'PrivateSamples.SUEP_2018_mMed-%d_mDark-%d_temp-%d_decay-%s'
             '_13TeV-pythia8_n-100_0_RA2AnalysisTree.root'%(mMed, mDark, temp, decayMode),
