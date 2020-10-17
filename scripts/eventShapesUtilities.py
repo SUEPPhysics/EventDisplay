@@ -18,11 +18,29 @@ def sphericityTensor(particles):
 def sphericity(s):
     s_eigvalues, s_eigvectors = np.linalg.eig(s)
     s_eigvalues = np.sort(s_eigvalues)
-    sphericity = (s_eigvalues[0]+s_eigvalues[1])*3./2.
+    sphericity = 1.5*(s_eigvalues[0]+s_eigvalues[1])
     return sphericity
 
 def aplanarity(s):
     s_eigvalues, s_eigvectors = np.linalg.eig(s)
     s_eigvalues = np.sort(s_eigvalues)
-    aplanarity = s_eigvalues[0]*3./2.
+    aplanarity = 1.5*s_eigvalues[0]
     return aplanarity
+
+def C(s):
+    s_eigvalues, s_eigvectors = np.linalg.eig(s)
+    s_eigvalues = np.sort(s_eigvalues)
+    C = 3.*(s_eigvalues[2]*s_eigvalues[0]+
+            s_eigvalues[2]*s_eigvalues[1]+
+            s_eigvalues[0]*s_eigvalues[1])
+    return C
+
+def D(s):
+    s_eigvalues, s_eigvectors = np.linalg.eig(s)
+    s_eigvalues = np.sort(s_eigvalues)
+    D = 27.*(s_eigvalues[0]*s_eigvalues[1]*s_eigvalues[2])
+
+def circularity(particles, numberOfSteps=1000):
+    deltaPhi = 2*np.pi/numberOfSteps
+    
+    return circularity
