@@ -5,6 +5,7 @@ from math import pi
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pyjet
+import suepsUtilities
 
 # Input section  -  You may want to edit these
 # File selection
@@ -13,9 +14,9 @@ mDark = 2
 temp = 2
 #decayMode = 'darkPho'
 decayMode = 'darkPhoHad'
-#base = '/Users/chrispap/'
+base = '/Users/chrispap/'
 # xrootd is not working properly in Python3 :(
-base = 'root://cmseos.fnal.gov//store/user/kdipetri/SUEP/Production_v0.2/2018/NTUP/'
+#base = 'root://cmseos.fnal.gov//store/user/kdipetri/SUEP/Production_v0.2/2018/NTUP/'
 datasets = [base +
             'PrivateSamples.SUEP_2018_mMed-%d_mDark-%d_temp-%d_decay-%s'
             '_13TeV-pythia8_n-100_0_RA2AnalysisTree.root'%(mMed, mDark, temp, decayMode),
@@ -29,11 +30,12 @@ if multi:
 
 # Switch to true if you want to boost along the scalar 4-momentum
 boost = False
+# Switch to subtract ISR from plotted particles
+subtractISR = False
 # Switch to true to save the figure as a PDF
 save = True
 # The event number the loop starts running form
-event = 45
-
+event = 0
 
 # Get the file and import using uproot
 rootfile = datasets[0]
@@ -43,6 +45,8 @@ tree = fin['TreeMaker2/PreSelection']
 def get_branch(branchname):
     return tree[branchname].array()
 
+HT = get_branch('HT')
+
 GenParticles_pt = get_branch('GenParticles.fCoordinates.fPt')
 GenParticles_eta = get_branch('GenParticles.fCoordinates.fEta')
 GenParticles_phi = get_branch('GenParticles.fCoordinates.fPhi')
@@ -50,16 +54,47 @@ GenParticles_E = get_branch('GenParticles.fCoordinates.fE')
 GenParticles_ParentId = get_branch('GenParticles_ParentId')
 GenParticles_PdgId = get_branch('GenParticles_PdgId')
 GenParticles_Status = get_branch('GenParticles_Status')
+GenParticles = uproot_methods.TLorentzVectorArray.from_ptetaphie(GenParticles_pt,
+                                                                 GenParticles_eta,
+                                                                 GenParticles_phi,
+                                                                 GenParticles_E)
+
+GenParticles = GenParticles[HT > 1200]
+GenParticles_ParentId = GenParticles_ParentId[HT > 1200]
+GenParticles_PdgId = GenParticles_PdgId[HT > 1200]
+GenParticles_Status = GenParticles_Status[HT > 1200]
+# The last copy of the scalar mediator
+ScalarParticle = GenParticles[(GenParticles_PdgId == 25) & (GenParticles_Status == 62)]
+# Define mask arrays to select the desired particles
+FinalParticles = (GenParticles_Status == 1) & (GenParticles.pt > 1)
+FromScalarParticles = GenParticles_ParentId == 999998
+IsrParticles = GenParticles_ParentId != 999998
+
 Tracks_x = get_branch('Tracks.fCoordinates.fX')
 Tracks_y = get_branch('Tracks.fCoordinates.fY')
 Tracks_z = get_branch('Tracks.fCoordinates.fZ')
 Tracks_fromPV0 = get_branch('Tracks_fromPV0')
 Tracks_matchedToPFCandidate = get_branch('Tracks_matchedToPFCandidate')
+Tracks_E = np.sqrt(Tracks_x**2+Tracks_y**2+Tracks_z**2+0.13957**2)
+Tracks = uproot_methods.TLorentzVectorArray.from_cartesian(Tracks_x, Tracks_y, Tracks_z, Tracks_E)
+Tracks = Tracks[HT > 1200]
+Tracks_fromPV0 = Tracks_fromPV0[HT > 1200]
+Tracks_matchedToPFCandidate = Tracks_matchedToPFCandidate[HT > 1200]
+# Select good tracks
+Tracks = Tracks[(Tracks.pt > 1.) & (Tracks.eta < 2.5) & (Tracks_fromPV0 >= 2) &
+                (Tracks_matchedToPFCandidate > 0)]
+
 JetsAK8_pt = get_branch('JetsAK8.fCoordinates.fPt')
 JetsAK8_eta = get_branch('JetsAK8.fCoordinates.fEta')
 JetsAK8_phi = get_branch('JetsAK8.fCoordinates.fPhi')
 JetsAK8_E = get_branch('JetsAK8.fCoordinates.fE')
-HT = get_branch('HT')
+JetsAK8 = uproot_methods.TLorentzVectorArray.from_ptetaphie(JetsAK8_pt, JetsAK8_eta,
+                                                            JetsAK8_phi, JetsAK8_E)
+JetsAK8 = JetsAK8[HT > 1200]
+
+EvtNum = get_branch('EvtNum')
+EvtNum = EvtNum[HT > 1200]
+HT = HT[HT > 1200]
 
 def get_dr_ring(dr, phi_c=0, eta_c=0, n_points=600):
     deta = np.linspace(-dr, +dr, n_points)
@@ -68,84 +103,41 @@ def get_dr_ring(dr, phi_c=0, eta_c=0, n_points=600):
     dphi = phi_c+np.concatenate((dphi, -dphi[::-1]))
     return dphi, deta
 
-def makeJets(tracks, R):
-    # Cluster AK15 jets
-    vectors = np.zeros(tracks.size, np.dtype([('pT', 'f8'), ('eta', 'f8'),
-                                              ('phi', 'f8'), ('mass', 'f8')]))
-    i = 0
-    for track in tracks:
-        vectors[i] = np.array((track.pt, track.eta, track.phi, track.mass),
-                              np.dtype([('pT', 'f8'), ('eta', 'f8'),
-                                        ('phi', 'f8'), ('mass', 'f8')]))
-        i += 1
-    sequence = pyjet.cluster(vectors, R=R, p=-1)
-    jetsAK15 = sequence.inclusive_jets()
-    return jetsAK15
-
 # Main plotting function
 def plot(ievt, ax=None, boost=False):
-    # Get the particles of ievt event
-    genParticles_pt = GenParticles_pt[ievt]
-    genParticles_phi = GenParticles_phi[ievt]
-    genParticles_eta = GenParticles_eta[ievt]
-    genParticles_E = GenParticles_E[ievt]
-    genParticles = uproot_methods.TLorentzVectorArray.from_ptetaphie(genParticles_pt,
-                                                                     genParticles_eta,
-                                                                     genParticles_phi,
-                                                                     genParticles_E)
-    genParticles_ParentId = GenParticles_ParentId[ievt]
+    # Get the GEN particles of ievt event
+    genParticles = GenParticles[ievt]
+    scalarParticle = ScalarParticle[ievt]
+    finalParticles = FinalParticles[ievt]
+    fromScalarParticles = FromScalarParticles[ievt]
+    isrParticles = IsrParticles[ievt]
     genParticles_PdgId = GenParticles_PdgId[ievt]
-    genParticles_Status = GenParticles_Status[ievt]
 
     # Get tracks information
-    tracks_x = Tracks_x[ievt]
-    tracks_y = Tracks_y[ievt]
-    tracks_z = Tracks_z[ievt]
-    tracks_E = np.sqrt(tracks_x**2+tracks_y**2+tracks_z**2+0.13957**2)
-    tracks = uproot_methods.TLorentzVectorArray.from_cartesian(tracks_x, tracks_y, tracks_z, tracks_E)
-    tracks_fromPV0 = Tracks_fromPV0[ievt]
-    tracks_matchedToPFCandidate = Tracks_matchedToPFCandidate[ievt]
+    tracks = Tracks[ievt]
 
     # Get the AK8 jets of the event
-    jetsAK8_pt = JetsAK8_pt[ievt]
-    jetsAK8_eta = JetsAK8_eta[ievt]
-    jetsAK8_phi = JetsAK8_phi[ievt]
-    jetsAK8_E = JetsAK8_E[ievt]
-    jetsAK8 = uproot_methods.TLorentzVectorArray.from_ptetaphie(jetsAK8_pt,
-                                                                jetsAK8_eta,
-                                                                jetsAK8_phi,
-                                                                jetsAK8_E)
+    jetsAK8 = JetsAK8[ievt]
+    jetsAK8_pt = jetsAK8.pt
 
-    # The last copy of the scalar mediator
-    scalarParticle = genParticles[(genParticles_PdgId == 25) & (genParticles_Status == 62)]
-
-    # Define mask arrays to select the desired particles
-    finalParticles = (genParticles_Status == 1) & (genParticles.pt > 1)
-    fromScalarParticles = genParticles_ParentId == 999998
-    isrParticles = genParticles_ParentId != 999998
-
-    # Select good tracks
-    tracks = tracks[(tracks.pt > 1.) &
-                    (tracks.eta < 2.5) &
-                    (tracks_fromPV0 >= 2) &
-                    (tracks_matchedToPFCandidate > 0)]
     # and make AK15 jets
-    jetsAK15_list = makeJets(tracks, 1.5)
+    jetsAK15_list = suepsUtilities.makeJets(tracks, 1.5)
+    isrJet = suepsUtilities.isrTagger(jetsAK15_list)
     jetsAK15_pt = np.zeros(len(jetsAK15_list))
     jetsAK15_eta = np.zeros(len(jetsAK15_list))
     jetsAK15_phi = np.zeros(len(jetsAK15_list))
-    jetsAK15_m = np.zeros(len(jetsAK15_list))
+    jetsAK15_E = np.zeros(len(jetsAK15_list))
     i = 0
     for jet in jetsAK15_list:
         jetsAK15_pt[i] = jet.pt
         jetsAK15_eta[i] = jet.eta
         jetsAK15_phi[i] = jet.phi
-        jetsAK15_m[i] = jet.mass
+        jetsAK15_E[i] = jet.e
         i += 1
-    jetsAK15 = uproot_methods.TLorentzVectorArray.from_ptetaphim(jetsAK15_pt,
+    jetsAK15 = uproot_methods.TLorentzVectorArray.from_ptetaphie(jetsAK15_pt,
                                                                  jetsAK15_eta,
                                                                  jetsAK15_phi,
-                                                                 jetsAK15_m)
+                                                                 jetsAK15_E)
     jetsAK15 = jetsAK15[jetsAK15.pt > 100]
 
     # Apply the selection criteria to get the final particle arrays
@@ -181,7 +173,8 @@ def plot(ievt, ax=None, boost=False):
 
     # Boost everything to scalar's rest frame
     if boost == True:
-        boost_vector = -scalarParticle.p3/scalarParticle.energy
+        #boost_vector = -scalarParticle.p3/scalarParticle.energy
+        boost_vector = -isrJet.p3/isrJet.energy
         fromScalarParticles_e = fromScalarParticles_e.boost(boost_vector)
         fromScalarParticles_mu = fromScalarParticles_mu.boost(boost_vector)
         fromScalarParticles_gamma = fromScalarParticles_gamma.boost(boost_vector)
@@ -193,6 +186,7 @@ def plot(ievt, ax=None, boost=False):
         isrParticles_pi = isrParticles_pi.boost(boost_vector)
         isrParticles_hadron = isrParticles_hadron.boost(boost_vector)
         jetsAK8 = jetsAK8.boost(boost_vector)
+        jetsAK15 = jetsAK15.boost(boost_vector)
         scalarParticle = scalarParticle.boost(boost_vector)
 
     # Initialize plotting
@@ -266,19 +260,36 @@ def plot(ievt, ax=None, boost=False):
     ax.scatter(jetsAK15.phi, jetsAK15.eta, s=scale(jetsAK15,scalarParticle),
                facecolors='none', edgecolors='xkcd:bright yellow')
 
-    print("Event %d:"%ievt)
+    print("Event %d:"%(EvtNum[ievt]))
     print("  JetsAK8")
+    i_pt = 0
     for jet in jetsAK8:
-        phis, etas = get_dr_ring(0.8, jet.phi, jet.eta)
+        if boost == True:
+            radiusScaling = jetsAK8_pt[i_pt]/jet.pt
+            if radiusScaling*0.8 > 3.1:
+                continue
+            phis, etas = get_dr_ring(0.8*radiusScaling, jet.phi, jet.eta)
+            i_pt += 1
+        else:
+            phis, etas = get_dr_ring(0.8, jet.phi, jet.eta)
         phis = phis[1:]
         etas = etas[1:]
         ax.plot(phis[phis>pi]-2*pi, etas[phis>pi], color='xkcd:bright green', linestyle='--')
         ax.plot(phis[phis<-pi]+2*pi, etas[phis<-pi], color='xkcd:bright green', linestyle='--')
         ax.plot(phis[phis<pi], etas[phis<pi], color='xkcd:bright green', linestyle='--')
         print("    Jet: pT=%d, eta=%.2f, phi=%.2f"%(jet.pt, jet.eta, jet.phi))
+
     print("  JetsAK15")
+    i_pt = 0
     for jet in jetsAK15:
-        phis, etas = get_dr_ring(1.5, jet.phi, jet.eta)
+        if boost == True:
+            radiusScaling = jetsAK15_pt[i_pt]/jet.pt
+            if radiusScaling*1.5 > 3.1:
+                continue
+            phis, etas = get_dr_ring(1.5*radiusScaling, jet.phi, jet.eta)
+            i_pt += 1
+        else:
+            phis, etas = get_dr_ring(1.5, jet.phi, jet.eta)
         phis = phis[1:]
         etas = etas[1:]
         ax.plot(phis[phis>pi]-2*pi, etas[phis>pi], color='xkcd:bright yellow', linestyle='--')
@@ -320,7 +331,7 @@ def plot(ievt, ax=None, boost=False):
 
     ax.add_patch(p)
     # Print event number
-    ax.text(left, top, 'Event %d'%ievt, horizontalalignment='left',
+    ax.text(left, top, 'Event %d'%(EvtNum[ievt]), horizontalalignment='left',
             verticalalignment='bottom', transform=ax.transAxes, fontsize=12)
     # Print sample details
     ax.text(right, top, 'mMed=%d$\,$GeV,mDark=%d$\,$GeV,T=%d$\,$K,'
@@ -334,22 +345,23 @@ def plot(ievt, ax=None, boost=False):
     ax.text(left+0.02, bottom+0.05, 'Scalar mediator $P_{T}=%d\,$GeV'%(scalarParticle.pt),
             horizontalalignment='left', verticalalignment='bottom',
             transform=ax.transAxes, fontsize=12)
+    # Print event's HT
+    ax.text(right-0.02, bottom+0.01, '$H_{T}=%d\,$GeV'%(HT[ievt]),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform=ax.transAxes, fontsize=12)
 
     if (boost == False) & (save == True):
         fig.savefig('Results/mMed%d_mDark%d_temp%d_decay-%s_'
-                    'Event%d.pdf'%(mMed, mDark, temp, decayMode,ievt))
+                    'Event%d.pdf'%(mMed, mDark, temp, decayMode,EvtNum[ievt]))
     elif (boost == True) & (save == True):
         fig.savefig('Results/mMed%d_mDark%d_temp%d_decay-%s_'
-                    'Event%d_boosted.pdf'%(mMed, mDark, temp, decayMode,ievt))
+                    'Event%d_boosted1.pdf'%(mMed, mDark, temp, decayMode,EvtNum[ievt]))
 
 
-# The program runs through this loop
+# The program runs through this event loop
 j = 0
 
-selectedEvents = HT > 1200
-
-for i in range(event,100+event):
-    if ~selectedEvents[i]: continue
+for i in range(event,6+event):
     if multi == False:
         plot(i,boost=boost)
         break;

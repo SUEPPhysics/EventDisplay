@@ -1,6 +1,8 @@
 import numpy as np
+import math
 
-def sphericityTensor(particles):
+## Check if this is the correct dot product
+def sphericityTensor(particles,r=2):
     s = np.zeros((3,3))
     s[0][0] = particles.x.dot(particles.x)
     s[0][1] = particles.x.dot(particles.y)
@@ -11,7 +13,6 @@ def sphericityTensor(particles):
     s[2][0] = particles.z.dot(particles.x)
     s[2][1] = particles.z.dot(particles.y)
     s[2][2] = particles.z.dot(particles.z)
-
     s = s/particles.p.dot(particles.p)
     return s
 
@@ -39,8 +40,37 @@ def D(s):
     s_eigvalues, s_eigvectors = np.linalg.eig(s)
     s_eigvalues = np.sort(s_eigvalues)
     D = 27.*(s_eigvalues[0]*s_eigvalues[1]*s_eigvalues[2])
+    return D
 
-def circularity(particles, numberOfSteps=1000):
-    deltaPhi = 2*np.pi/numberOfSteps
-    
-    return circularity
+# In fact, this is the linearized circularity
+# (this is the definition also used in CMSSW)
+def circularity(particles, numberOfSteps=100):
+    phi = np.linspace(0,2*math.pi,numberOfSteps)
+    pTsum = np.sum(particles.pt)
+    nTs = np.array([np.cos(phi), np.sin(phi)])
+    nTs = nTs.transpose()
+    pTcomponents = np.array([particles.p3.x, particles.p3.y])
+    pTcomponents = pTcomponents.transpose()
+    sum_pn = np.zeros(numberOfSteps)
+    i = 0
+    for nT in nTs:
+        for pTcomponent in pTcomponents:
+            sum_pn[i] += np.abs(nT.dot(pTcomponent))
+        i+=1
+    return math.pi*np.amin(sum_pn)/(2*pTsum)
+
+def isotropy(particles, numberOfSteps=100):
+    phi = np.linspace(0,2*math.pi,numberOfSteps)
+    nTs = np.array([np.cos(phi), np.sin(phi)])
+    nTs = nTs.transpose()
+    pTcomponents = np.array([particles.p3.x, particles.p3.y])
+    pTcomponents = pTcomponents.transpose()
+    sum_pn = np.zeros(numberOfSteps)
+    i = 0
+    for nT in nTs:
+        for pTcomponent in pTcomponents:
+            sum_pn[i] += np.abs(nT.dot(pTcomponent))
+        i+=1
+    eMin = np.amin(sum_pn)
+    eMax = np.amax(sum_pn)
+    return (eMax-eMin)/eMax

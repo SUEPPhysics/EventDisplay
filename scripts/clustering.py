@@ -4,7 +4,7 @@ import numpy as np
 from math import pi
 import matplotlib.pyplot as plt
 import mplhep as hep
-import pyjet
+import suepsUtilities
 
 plt.style.use(hep.style.ROOT)
 boost = False
@@ -38,20 +38,6 @@ Tracks_fromPV0 = get_branch('Tracks_fromPV0')
 Tracks_matchedToPFCandidate = get_branch('Tracks_matchedToPFCandidate')
 HT = get_branch('HT')
 
-def makeJets(tracks, R):
-    # Cluster AK15 jets
-    vectors = np.zeros(tracks.size, np.dtype([('pT', 'f8'), ('eta', 'f8'),
-                                              ('phi', 'f8'), ('mass', 'f8')]))
-    i = 0
-    for track in tracks:
-        vectors[i] = np.array((track.pt, track.eta, track.phi, track.mass),
-                              np.dtype([('pT', 'f8'), ('eta', 'f8'),
-                                        ('phi', 'f8'), ('mass', 'f8')]))
-        i += 1
-    sequence = pyjet.cluster(vectors, R=R, p=-1)
-    jetsAK15 = sequence.inclusive_jets()
-    return jetsAK15
-
 jetMultiplicities = [0]
 for i in range(Tracks_x.size):
     if HT[i] > 1200:
@@ -72,7 +58,7 @@ for i in range(Tracks_x.size):
                         (tracks_fromPV0 >= 2) &
                         (tracks_matchedToPFCandidate > 0)]
 
-        jetsAK15 = makeJets(tracks, 1.5)
+        jetsAK15 = suepsUtilities.makeJets(tracks, 1.5)
         #print("Event %d:"%event)
 
         for jet in jetsAK15:

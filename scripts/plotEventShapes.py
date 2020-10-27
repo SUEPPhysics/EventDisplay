@@ -6,21 +6,37 @@ import matplotlib.pyplot as plt
 import mplhep as hep
 import pyjet
 import eventShapesUtilities
+import suepsUtilities
+import matplotlib.colors as colors
+import matplotlib.cm as cmx
 
 plt.style.use(hep.style.ROOT)
-boost = False
+
+variable = 'sphericity'
+#variable = 'aplanarity'
+#variable = 'C'
+#variable = 'D'
+#variable = 'circularity'
+#variable = 'isotropy'
 
 # Get the file and import using uproot
+# Signal parameters
 mMed = 1000
 mDark = 2
 temp = 2
 #decayMode = 'darkPho'
 decayMode = 'darkPhoHad'
+# QCD parameters
+htBins = ['1000to1500','1500to2000','2000toInf']
+xs = [1207, 119.9, 25.24]
 base = '/Users/chrispap/'
 #base = 'root://cmseos.fnal.gov//store/user/kdipetri/SUEP/Production_v0.2/2018/NTUP/'
 datasets = [base +
             'PrivateSamples.SUEP_2018_mMed-%d_mDark-%d_temp-%d_decay-%s'
             '_13TeV-pythia8_n-100_0_RA2AnalysisTree.root'%(mMed, mDark, temp, decayMode),
+            base + 'Autumn18.QCD_HT1000to1500_TuneCP5_13TeV-madgraphMLM-pythia8_RA2AnalysisTree.root',
+            base + 'Autumn18.QCD_HT1500to2000_TuneCP5_13TeV-madgraphMLM-pythia8_RA2AnalysisTree.root',
+            base + 'Autumn18.QCD_HT2000toInf_TuneCP5_13TeV-madgraphMLM-pythia8_RA2AnalysisTree.root',
            ]
 rootfile = datasets[0]
 fin = uproot.open(rootfile)
@@ -30,141 +46,119 @@ tree = fin['TreeMaker2/PreSelection']
 def get_branch(branchname):
     return tree[branchname].array()
 
-GenParticles_pt = get_branch('GenParticles.fCoordinates.fPt')
-GenParticles_eta = get_branch('GenParticles.fCoordinates.fEta')
-GenParticles_phi = get_branch('GenParticles.fCoordinates.fPhi')
-GenParticles_E = get_branch('GenParticles.fCoordinates.fE')
-GenParticles_ParentId = get_branch(b'GenParticles_ParentId')
-GenParticles_PdgId = get_branch(b'GenParticles_PdgId')
-GenParticles_Status = get_branch(b'GenParticles_Status')
-HT = get_branch(b'HT')
-
+HT = get_branch('HT')
 Tracks_x = get_branch('Tracks.fCoordinates.fX')
 Tracks_y = get_branch('Tracks.fCoordinates.fY')
 Tracks_z = get_branch('Tracks.fCoordinates.fZ')
 Tracks_fromPV0 = get_branch('Tracks_fromPV0')
 Tracks_matchedToPFCandidate = get_branch('Tracks_matchedToPFCandidate')
 
-GenParticles_pt = GenParticles_pt[HT > 1200]
-GenParticles_eta = GenParticles_eta[HT > 1200]
-GenParticles_phi = GenParticles_phi[HT > 1200]
-GenParticles_E = GenParticles_E[HT > 1200]
-GenParticles_ParentId = GenParticles_ParentId[HT > 1200]
-GenParticles_PdgId = GenParticles_PdgId[HT > 1200]
-GenParticles_Status = GenParticles_Status[HT > 1200]
 Tracks_x = Tracks_x[HT > 1200]
 Tracks_y = Tracks_y[HT > 1200]
 Tracks_z = Tracks_z[HT > 1200]
 Tracks_fromPV0 = Tracks_fromPV0[HT > 1200]
 Tracks_matchedToPFCandidate = Tracks_matchedToPFCandidate[HT > 1200]
+Tracks_E = np.sqrt(Tracks_x**2+Tracks_y**2+Tracks_z**2+0.13957**2)
+Tracks = uproot_methods.TLorentzVectorArray.from_cartesian(Tracks_x, Tracks_y, Tracks_z, Tracks_E)
 
-sph0 = np.zeros(GenParticles_Status.size) #sphericity
-sph1 = np.zeros(GenParticles_Status.size) #sphericity
-sph2 = np.zeros(GenParticles_Status.size) #sphericity
-apl0 = np.zeros(GenParticles_Status.size) #aplanarity
-apl1 = np.zeros(GenParticles_Status.size) #aplanarity
-apl2 = np.zeros(GenParticles_Status.size) #aplanarity
+# Select good tracks
+Tracks = Tracks[(Tracks.pt > 1.) & (Tracks.eta < 2.5) & (Tracks_fromPV0 >= 2) &
+                (Tracks_matchedToPFCandidate > 0)]
 
-def makeJets(tracks, R):
-    # Cluster AK15 jets
-    vectors = np.zeros(tracks.size, np.dtype([('pT', 'f8'), ('eta', 'f8'),
-                                              ('phi', 'f8'), ('mass', 'f8')]))
-    i = 0
-    for track in tracks:
-        vectors[i] = np.array((track.pt, track.eta, track.phi, track.mass),
-                              np.dtype([('pT', 'f8'), ('eta', 'f8'),
-                                        ('phi', 'f8'), ('mass', 'f8')]))
-        i += 1
-    sequence = pyjet.cluster(vectors, R=R, p=-1)
-    jetsAK15 = sequence.inclusive_jets()
-    return jetsAK15
+evtShape = np.zeros(Tracks_x.size)
+evtShape1 = np.zeros(Tracks_x.size)
+evtShape2 = np.zeros(Tracks_x.size)
+evtShape3 = np.zeros(Tracks_x.size)
+evtShape4 = np.zeros(Tracks_x.size)
+evtShape5 = np.zeros(Tracks_x.size)
 
-def isrTagger(jets):
-    mult0 = len(jets[0])
-    mult1 = len(jets[1])
-    if (mult0 > 130) & (mult1 > 130):
-        print("Warning: both multiplicities are above 130!")
-    elif (mult0 < 130) & (mult1 < 130):
-        print("Warning: both multiplicities are below 130!")
-    if mult0 > mult1:
-        return uproot_methods.TLorentzVectorArray.from_ptetaphim([jets[1].pt],
-                                                                 [jets[1].eta],
-                                                                 [jets[1].phi],
-                                                                 [jets[1].mass])
-    else:
-        return uproot_methods.TLorentzVectorArray.from_ptetaphim([jets[0].pt],
-                                                                 [jets[0].eta],
-                                                                 [jets[0].phi],
-                                                                 [jets[0].mass])
-
-for ievt in range(GenParticles_Status.size):
-    # Get the particles of ievt event
-    genParticles_pt = GenParticles_pt[ievt]
-    genParticles_phi = GenParticles_phi[ievt]
-    genParticles_eta = GenParticles_eta[ievt]
-    genParticles_E = GenParticles_E[ievt]
-    genParticles = uproot_methods.TLorentzVectorArray.from_ptetaphie(genParticles_pt,
-                                                                     genParticles_eta,
-                                                                     genParticles_phi,
-                                                                     genParticles_E)
-    genParticles_ParentId = GenParticles_ParentId[ievt]
-    genParticles_PdgId = GenParticles_PdgId[ievt]
-    genParticles_Status = GenParticles_Status[ievt]
-
+for ievt in range(Tracks_x.size):
     # Tracks in the event
-    tracks_x = Tracks_x[ievt]
-    tracks_y = Tracks_y[ievt]
-    tracks_z = Tracks_z[ievt]
-    tracks_E = np.sqrt(tracks_x**2+tracks_y**2+tracks_z**2+0.13957**2)
-    tracks = uproot_methods.TLorentzVectorArray.from_cartesian(tracks_x, tracks_y, tracks_z, tracks_E)
-    tracks_fromPV0 = Tracks_fromPV0[ievt]
-    tracks_matchedToPFCandidate = Tracks_matchedToPFCandidate[ievt]
+    tracks = Tracks[ievt]
 
-    # Select good tracks
-    tracks = tracks[(tracks.pt > 1.) &
-                    (tracks.eta < 2.5) &
-                    (tracks_fromPV0 >= 2) &
-                    (tracks_matchedToPFCandidate > 0)]
+    # Cluster AK15 jets
+    jetsAK15 = suepsUtilities.makeJets(tracks, 1.5)
+    isrJet = suepsUtilities.isrTagger(jetsAK15)
 
-    jetsAK15 = makeJets(tracks, 1.5)
-    isrJet = isrTagger(jetsAK15)
-
-    # The last copy of the scalar mediator
-    scalarParticle = genParticles[(genParticles_PdgId == 25) & (genParticles_Status == 62)]
-
-    # Define mask arrays to select the desired particles
-    finalParticles = (genParticles_Status == 1) & (genParticles.pt > 1) & (abs(genParticles.eta) < 3)
-    genParticles = genParticles[finalParticles]
+    # Subtract ISR
+    #tracks_minusISR = tracks[tracks.delta_r(isrJet) > 0.4]
 
     # Boost everything to scalar's rest frame
-    genParticles_boosted1 = genParticles.boost(-scalarParticle.p3/scalarParticle.energy)
-    genParticles_boosted2 = genParticles.boost(-isrJet.p3/isrJet.energy)
+    tracks_boosted_minusISR = tracks.boost(-isrJet.p3/isrJet.energy)
 
-    s0 = eventShapesUtilities.sphericityTensor(genParticles)
-    s1 = eventShapesUtilities.sphericityTensor(genParticles_boosted1)
-    s2 = eventShapesUtilities.sphericityTensor(genParticles_boosted2)
+    tracks_boosted_minusISR_minus1 = suepsUtilities.removeMaxE(tracks_boosted_minusISR, N=5)
+    tracks_boosted_minusISR_minus2 = suepsUtilities.removeMaxE(tracks_boosted_minusISR, N=10)
+    tracks_boosted_minusISR_minus3 = suepsUtilities.removeMaxE(tracks_boosted_minusISR, N=20)
+    tracks_boosted_minusISR_minus4 = suepsUtilities.removeMaxE(tracks_boosted_minusISR, N=40)
+    tracks_boosted_minusISR_minus5 = suepsUtilities.removeMaxE(tracks_boosted_minusISR, N=80)
 
-    sph0[ievt] = eventShapesUtilities.sphericity(s0)
-    sph1[ievt] = eventShapesUtilities.sphericity(s1)
-    sph2[ievt] = eventShapesUtilities.sphericity(s2)
+    s = eventShapesUtilities.sphericityTensor(tracks_boosted_minusISR)
+    s1 = eventShapesUtilities.sphericityTensor(tracks_boosted_minusISR_minus1)
+    s2 = eventShapesUtilities.sphericityTensor(tracks_boosted_minusISR_minus2)
+    s3 = eventShapesUtilities.sphericityTensor(tracks_boosted_minusISR_minus3)
+    s4 = eventShapesUtilities.sphericityTensor(tracks_boosted_minusISR_minus4)
+    s5 = eventShapesUtilities.sphericityTensor(tracks_boosted_minusISR_minus5)
 
-    apl0[ievt] = eventShapesUtilities.aplanarity(s0)
-    apl1[ievt] = eventShapesUtilities.aplanarity(s1)
-    apl2[ievt] = eventShapesUtilities.aplanarity(s2)
+    if variable == "sphericity":
+        evtShape[ievt] = eventShapesUtilities.sphericity(s)
+        evtShape1[ievt] = eventShapesUtilities.sphericity(s1)
+        evtShape2[ievt] = eventShapesUtilities.sphericity(s2)
+        evtShape3[ievt] = eventShapesUtilities.sphericity(s3)
+        evtShape4[ievt] = eventShapesUtilities.sphericity(s4)
+        evtShape5[ievt] = eventShapesUtilities.sphericity(s5)
+    elif variable == "aplanarity":
+        evtShape[ievt] = eventShapesUtilities.aplanarity(s)
+    elif variable == "C":
+        evtShape[ievt] = eventShapesUtilities.C(s)
+    elif variable == "D":
+        evtShape[ievt] = eventShapesUtilities.D(s)
+    elif variable == "circularity":
+        evtShape[ievt] = eventShapesUtilities.circularity(tracks_boosted_minusISR)
+        if ievt%100:
+            print("Event %d processed!"%ievt)
+    elif variable == "isotropy":
+        evtShape[ievt] = eventShapesUtilities.isotropy(tracks_boosted_minusISR)
+        if ievt%100:
+            print("Event %d processed!"%ievt)
+    else:
+        print("Error: Unknown event shape variable %s"%variable)
 
 # Plot results
 fig = plt.figure(figsize=(8,8))
 ax = plt.gca()
 
-#ax.hist(sph0, 25, histtype='step', label='not boosted', color='b')
-#ax.hist(sph1, 25, histtype='step', label='boosted using scalar', color='r')
-#ax.hist(sph2, 25, histtype='step', label='boosted using ISR jet', color='g')
-#ax.set_xlabel('sphericity', fontsize=18)
+# Set colormap
+values = range(6)
+jet = cm = plt.get_cmap('jet')
+cNorm  = colors.Normalize(vmin=0, vmax=values[-1])
+scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=jet)
 
-ax.hist(apl0, 25, histtype='step', label='not boosted', color='b')
-ax.hist(apl1, 25, histtype='step', label='boosted using scalar', color='r')
-ax.hist(apl2, 25, histtype='step', label='boosted using ISR jet', color='g')
-ax.set_xlabel('aplanarity', fontsize=18)
+colorVal = scalarMap.to_rgba(values[0])
+ax.hist(evtShape, bins=25, range=(0, 1), histtype='step', label='minus 0', color=colorVal)
+colorVal = scalarMap.to_rgba(values[1])
+ax.hist(evtShape1, bins=25, range=(0, 1), histtype='step', label='minus 5', color=colorVal)
+colorVal = scalarMap.to_rgba(values[2])
+ax.hist(evtShape2, bins=25, range=(0, 1), histtype='step', label='minus 10', color=colorVal)
+colorVal = scalarMap.to_rgba(values[3])
+ax.hist(evtShape3, bins=25, range=(0, 1), histtype='step', label='minus 20', color=colorVal)
+colorVal = scalarMap.to_rgba(values[4])
+ax.hist(evtShape4, bins=25, range=(0, 1), histtype='step', label='minus 40', color=colorVal)
+colorVal = scalarMap.to_rgba(values[5])
+ax.hist(evtShape5, bins=25, range=(0, 1), histtype='step', label='minus 80', color=colorVal)
+if variable == "sphericity":
+    ax.set_xlabel('sphericity', fontsize=18)
+elif variable == "aplanarity":
+    ax.set_xlabel('aplanarity', fontsize=18)
+elif variable == "C":
+    ax.set_xlabel('C', fontsize=18)
+elif variable == "D":
+    ax.set_xlabel('D', fontsize=18)
+elif variable == "circularity":
+    ax.set_xlabel('circularity', fontsize=18)
+elif variable == "isotropy":
+    ax.set_xlabel('isotropy', fontsize=18)
 
 plt.legend()
-plt.show()
+#fig.savefig('Results/%s.pdf'%variable)
+
+#plt.show()
