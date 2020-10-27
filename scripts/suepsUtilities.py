@@ -17,12 +17,12 @@ def makeJets(tracks, R, p=-1):
     jets = sequence.inclusive_jets()
     return jets
 
-def isrTagger(jets, warnThresh=130):
+def isrTagger(jets, warn=True, warnThresh=130):
     mult0 = len(jets[0])
     mult1 = len(jets[1])
-    if (mult0 > warnThresh) & (mult1 > warnThresh):
+    if (mult0 > warnThresh) & (mult1 > warnThresh) & warn:
         print("Warning: both multiplicities are above %d!"%warnThresh)
-    elif (mult0 < warnThresh) & (mult1 < warnThresh):
+    elif (mult0 < warnThresh) & (mult1 < warnThresh) & warn:
         print("Warning: both multiplicities are below %d!"%warnThresh)
     if mult0 < mult1:
         return uproot_methods.TLorentzVectorArray.from_ptetaphim([jets[1].pt],

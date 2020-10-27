@@ -58,7 +58,7 @@ for ievt in range(Tracks_x.size):
     tracks_matchedToPFCandidate = Tracks_matchedToPFCandidate[ievt]
     tracks = tracks[(tracks.pt > 1.) & (tracks.eta < 2.5) & (tracks_fromPV0 >= 2) & (tracks_matchedToPFCandidate > 0)]
     jetsAK15 = suepsUtilities.makeJets(tracks, 1.5)
-    isrJet = suepsUtilities.isrTagger(jetsAK15)
+    isrJet = suepsUtilities.isrTagger(jetsAK15,warn=False)
     tracks_boosted_minusISR = tracks.boost(-isrJet.p3/isrJet.energy)
     s = eventShapesUtilities.sphericityTensor(tracks_boosted_minusISR)
     evtShape[ievt] = eventShapesUtilities.sphericity(s)
