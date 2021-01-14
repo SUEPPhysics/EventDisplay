@@ -17,23 +17,42 @@ def makeJets(tracks, R, p=-1):
     jets = sequence.inclusive_jets()
     return jets
 
-def isrTagger(jets, warn=True, warnThresh=130):
+def isrTagger(jets, warn=False, warnThresh=130, multiplicity='high'):
+    if len(jets) == 0:
+        print("Error: passing array with no jets!")
+        return
+    if len(jets) == 1:
+        return uproot_methods.TLorentzVectorArray.from_ptetaphim([jets[0].pt],
+                                                                 [jets[0].eta],
+                                                                 [jets[0].phi],
+                                                                 [jets[0].mass])
     mult0 = len(jets[0])
     mult1 = len(jets[1])
     if (mult0 > warnThresh) & (mult1 > warnThresh) & warn:
         print("Warning: both multiplicities are above %d!"%warnThresh)
     elif (mult0 < warnThresh) & (mult1 < warnThresh) & warn:
         print("Warning: both multiplicities are below %d!"%warnThresh)
+    index = None
     if mult0 < mult1:
-        return uproot_methods.TLorentzVectorArray.from_ptetaphim([jets[1].pt],
-                                                                 [jets[1].eta],
-                                                                 [jets[1].phi],
-                                                                 [jets[1].mass])
+        if multiplicity == 'high':
+            index = 1
+        elif multiplicity == 'low':
+            index = 0
+        else:
+            print("Error: Unkown multiplicity target '%s'"%(multiplicity))
+            return
     else:
-        return uproot_methods.TLorentzVectorArray.from_ptetaphim([jets[0].pt],
-                                                                 [jets[0].eta],
-                                                                 [jets[0].phi],
-                                                                 [jets[0].mass])
+        if multiplicity == 'high':
+            index = 0
+        elif multiplicity == 'low':
+            index = 1
+        else:
+            print("Error: Unkown multiplicity target '%s'"%(multiplicity))
+            return
+    return uproot_methods.TLorentzVectorArray.from_ptetaphim([jets[index].pt],
+                                                             [jets[index].eta],
+                                                             [jets[index].phi],
+                                                             [jets[index].mass])
 
 def deltar(eta1, phi1, eta2, phi2):
     deta = eta1 - eta2
@@ -45,6 +64,8 @@ def deltar(eta1, phi1, eta2, phi2):
     return np.sqrt(deta**2 + dphi**2)
 
 def removeMaxE(particles, N=1):
+    if particles.size == 0:
+        return particles
     mask = np.ones(particles.size, dtype=bool)
     mask[particles.energy.argmax()] = False
     if N == 0:

@@ -136,3 +136,6 @@ dmypy.json
 *.png
 *.eps
 *.jpg
+
+# Python pickle files
+*.p

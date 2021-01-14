@@ -81,7 +81,7 @@ Tracks = Tracks[HT > 1200]
 Tracks_fromPV0 = Tracks_fromPV0[HT > 1200]
 Tracks_matchedToPFCandidate = Tracks_matchedToPFCandidate[HT > 1200]
 # Select good tracks
-Tracks = Tracks[(Tracks.pt > 1.) & (Tracks.eta < 2.5) & (Tracks_fromPV0 >= 2) &
+Tracks = Tracks[(Tracks.pt > 1.) & (abs(Tracks.eta) < 2.5) & (Tracks_fromPV0 >= 2) &
                 (Tracks_matchedToPFCandidate > 0)]
 
 JetsAK8_pt = get_branch('JetsAK8.fCoordinates.fPt')
